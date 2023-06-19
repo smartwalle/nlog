@@ -62,9 +62,9 @@ func NewFile(filename string, opts ...Option) (*File, error) {
 	}
 
 	var file = &File{}
-	file.name = filepath.Base(filename)
-	file.filepath = filepath.Dir(filename)
 	file.filename = filename
+	file.filepath = filepath.Dir(filename)
+	file.name = filepath.Base(filename)
 	file.extension = filepath.Ext(filename)
 	file.backup = filepath.Join(file.filepath, strings.Split(file.name, ".")[0]+"-%s"+file.extension)
 
