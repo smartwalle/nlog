@@ -1,11 +1,12 @@
 package nlog
 
 import (
+	"errors"
 	"fmt"
 	"io/fs"
 	"os"
-	"path"
 	"path/filepath"
+	"strings"
 	"sync"
 	"time"
 )
@@ -31,8 +32,12 @@ func WithMaxAge(seconds int64) Option {
 }
 
 type File struct {
-	path    string
-	name    string
+	filename  string // logs/test.log
+	filepath  string // logs
+	name      string // test.log
+	extension string // .log
+	backup    string // logs/test-%s.log
+
 	maxSize int64
 	maxAge  int64
 
@@ -43,24 +48,37 @@ type File struct {
 	clean  chan struct{}
 }
 
-const (
-	kFilename = "temp_log.log"
-	kFileExt  = ".log"
-)
+func NewFile(filename string, opts ...Option) (*File, error) {
+	if filename == "" {
+		return nil, errors.New("filename cannot be empty")
+	}
 
-func NewFile(path string, opts ...Option) (*File, error) {
+	info, err := os.Stat(filename)
+	if err != nil && !os.IsNotExist(err) {
+		return nil, err
+	}
+	if info != nil && info.IsDir() {
+		return nil, fmt.Errorf("a folder with the name %s already exists", filename)
+	}
+
 	var file = &File{}
-	file.path = path
-	file.name = filepath.Join(path, kFilename)
+	file.name = filepath.Base(filename)
+	file.filepath = filepath.Dir(filename)
+	file.filename = filename
+	file.extension = filepath.Ext(filename)
+	file.backup = filepath.Join(file.filepath, strings.Split(file.name, ".")[0]+"-%s"+file.extension)
+
 	file.maxSize = 10 * 1024 * 1024
 	file.maxAge = 0
 	file.clean = make(chan struct{}, 1)
+
 	for _, opt := range opts {
 		if opt != nil {
 			opt(file)
 		}
 	}
-	if err := os.MkdirAll(file.path, 0755); err != nil {
+
+	if err = os.MkdirAll(file.filepath, 0755); err != nil {
 		return nil, err
 	}
 
@@ -97,7 +115,7 @@ func (this *File) openOrCreate(size int64) error {
 	this.needClean()
 
 	// 获取log文件信息
-	var info, err = os.Stat(this.name)
+	var info, err = os.Stat(this.filename)
 	if os.IsNotExist(err) {
 		// 如果log文件不存在，直接创建新的log文件
 		return this.create()
@@ -112,7 +130,7 @@ func (this *File) openOrCreate(size int64) error {
 	}
 
 	// 打开现有的文件
-	file, err := os.OpenFile(this.name, os.O_APPEND|os.O_WRONLY, 0777)
+	file, err := os.OpenFile(this.filename, os.O_APPEND|os.O_WRONLY, 0777)
 	if err != nil {
 		// 如果打开文件出错，则创建新的文件
 		return this.create()
@@ -124,7 +142,7 @@ func (this *File) openOrCreate(size int64) error {
 }
 
 func (this *File) create() error {
-	var file, err = os.OpenFile(this.name, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0777)
+	var file, err = os.OpenFile(this.filename, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0777)
 	if err != nil {
 		return err
 	}
@@ -134,10 +152,10 @@ func (this *File) create() error {
 }
 
 func (this *File) rename() error {
-	_, err := os.Stat(this.name)
+	_, err := os.Stat(this.filename)
 	if err == nil {
-		var name = path.Join(this.path, fmt.Sprintf("log_%s.log", time.Now().Format("2006_01_02_15_04_05.000000")))
-		if err = os.Rename(this.name, name); err != nil {
+		var name = fmt.Sprintf(this.backup, time.Now().Format("2006_01_02_15_04_05.000000"))
+		if err = os.Rename(this.filename, name); err != nil {
 			return err
 		}
 	}
@@ -199,12 +217,12 @@ func (this *File) runClean() {
 			if !ok {
 				return
 			}
-			var files, _ = os.ReadDir(this.path)
+			var files, _ = os.ReadDir(this.filepath)
 			for _, file := range files {
 				info, _ := file.Info()
 				if info != nil && !info.IsDir() && info.ModTime().Unix() < (time.Now().Unix()-this.maxAge) {
-					if filepath.Ext(info.Name()) == kFileExt && info.Name() != kFilename {
-						os.Remove(filepath.Join(this.path, info.Name()))
+					if info.Name() != this.name && filepath.Ext(info.Name()) == this.extension {
+						os.Remove(filepath.Join(this.filepath, info.Name()))
 					}
 				}
 			}
