@@ -1,8 +1,8 @@
 package nlog_test
 
 import (
+	"github.com/smartwalle/nlog"
 	"log"
-	"nlog"
 	"testing"
 )
 
