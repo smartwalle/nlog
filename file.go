@@ -19,7 +19,7 @@ type FileWriter interface {
 	Close() error
 }
 
-type FileCreator func(name string, flag int, perm os.FileMode) (FileWriter, error)
+type FileWriterBuilder func(name string, flag int, perm os.FileMode) (FileWriter, error)
 
 type Option func(opts *File)
 
@@ -43,15 +43,15 @@ func WithMaxAge(seconds int64) Option {
 
 func WithBuffer(bytes int) Option {
 	return func(opts *File) {
-		opts.creator = func(name string, flag int, perm os.FileMode) (FileWriter, error) {
+		opts.builder = func(name string, flag int, perm os.FileMode) (FileWriter, error) {
 			return openBufferedFile(name, flag, perm, bytes)
 		}
 	}
 }
 
-func WithCreator(creator FileCreator) Option {
+func WithBuilder(builder FileWriterBuilder) Option {
 	return func(opts *File) {
-		opts.creator = creator
+		opts.builder = builder
 	}
 }
 
@@ -66,7 +66,7 @@ type File struct {
 	maxAge  int64
 
 	mu      sync.Mutex
-	creator FileCreator
+	builder FileWriterBuilder
 	file    FileWriter
 	size    int64
 	closed  bool
@@ -96,7 +96,7 @@ func NewFile(filename string, opts ...Option) (*File, error) {
 	file.maxSize = 10 * 1024 * 1024
 	file.maxAge = 0
 
-	file.creator = func(name string, flag int, perm os.FileMode) (FileWriter, error) {
+	file.builder = func(name string, flag int, perm os.FileMode) (FileWriter, error) {
 		return os.OpenFile(name, flag, perm)
 	}
 	file.clean = make(chan struct{}, 1)
@@ -159,7 +159,7 @@ func (this *File) openOrCreate(size int64) error {
 	}
 
 	// 打开现有的文件
-	file, err := this.creator(this.filename, os.O_APPEND|os.O_WRONLY, 0777)
+	file, err := this.builder(this.filename, os.O_APPEND|os.O_WRONLY, 0777)
 	if err != nil {
 		// 如果打开文件出错，则创建新的文件
 		return this.create()
@@ -171,7 +171,7 @@ func (this *File) openOrCreate(size int64) error {
 }
 
 func (this *File) create() error {
-	var file, err = this.creator(this.filename, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0777)
+	var file, err = this.builder(this.filename, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0777)
 	if err != nil {
 		return err
 	}
