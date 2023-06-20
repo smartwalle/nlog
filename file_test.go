@@ -10,7 +10,7 @@ import (
 
 func BenchmarkLogger_Write(b *testing.B) {
 	var n = rand.Int()
-	var file, err = nlog.NewFile(fmt.Sprintf("logs/%d.log", n), nlog.WithBuffer(10*1024*1024))
+	var file, err = nlog.NewFile(fmt.Sprintf("logs/%d.log", n))
 	if err != nil {
 		b.Fatal(err)
 	}
@@ -20,7 +20,7 @@ func BenchmarkLogger_Write(b *testing.B) {
 	log.SetFlags(log.Ldate | log.Ltime | log.Lmicroseconds)
 
 	for i := 0; i < b.N; i++ {
-		log.Println(n, i, "xxxxx")
+		log.Println(n, i, "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx")
 	}
 
 	file.Close()
