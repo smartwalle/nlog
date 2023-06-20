@@ -49,6 +49,12 @@ func WithBuffer(bytes int) Option {
 	}
 }
 
+func WithCreator(creator FileCreator) Option {
+	return func(opts *File) {
+		opts.creator = creator
+	}
+}
+
 type File struct {
 	filename  string // logs/test.log
 	filepath  string // logs
@@ -137,10 +143,10 @@ func (this *File) Write(b []byte) (n int, err error) {
 func (this *File) openOrCreate(size int64) error {
 	this.needClean()
 
-	// 获取log文件信息
+	// 获取文件信息
 	var info, err = os.Stat(this.filename)
 	if os.IsNotExist(err) {
-		// 如果log文件不存在，直接创建新的log文件
+		// 如果文件不存在，直接创建新的文件
 		return this.create()
 	}
 	if err != nil {
