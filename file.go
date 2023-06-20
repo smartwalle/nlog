@@ -11,14 +11,24 @@ import (
 	"time"
 )
 
+type FileWriter interface {
+	Write(b []byte) (n int, err error)
+
+	Sync() error
+
+	Close() error
+}
+
+type FileCreator func(name string, flag int, perm os.FileMode) (FileWriter, error)
+
 type Option func(opts *File)
 
-func WithMaxSize(mb int64) Option {
+func WithMaxSize(bytes int64) Option {
 	return func(opts *File) {
-		if mb <= 0 {
+		if bytes <= 0 {
 			return
 		}
-		opts.maxSize = mb * 1024 * 1024
+		opts.maxSize = bytes
 	}
 }
 
@@ -28,6 +38,14 @@ func WithMaxAge(seconds int64) Option {
 			return
 		}
 		opts.maxAge = seconds
+	}
+}
+
+func WithBuffer(bytes int) Option {
+	return func(opts *File) {
+		opts.creator = func(name string, flag int, perm os.FileMode) (FileWriter, error) {
+			return openBufferedFile(name, flag, perm, bytes)
+		}
 	}
 }
 
@@ -41,11 +59,12 @@ type File struct {
 	maxSize int64
 	maxAge  int64
 
-	mu     sync.Mutex
-	file   *os.File
-	size   int64
-	closed bool
-	clean  chan struct{}
+	mu      sync.Mutex
+	creator FileCreator
+	file    FileWriter
+	size    int64
+	closed  bool
+	clean   chan struct{}
 }
 
 func NewFile(filename string, opts ...Option) (*File, error) {
@@ -70,6 +89,10 @@ func NewFile(filename string, opts ...Option) (*File, error) {
 
 	file.maxSize = 10 * 1024 * 1024
 	file.maxAge = 0
+
+	file.creator = func(name string, flag int, perm os.FileMode) (FileWriter, error) {
+		return os.OpenFile(name, flag, perm)
+	}
 	file.clean = make(chan struct{}, 1)
 
 	for _, opt := range opts {
@@ -130,7 +153,7 @@ func (this *File) openOrCreate(size int64) error {
 	}
 
 	// 打开现有的文件
-	file, err := os.OpenFile(this.filename, os.O_APPEND|os.O_WRONLY, 0777)
+	file, err := this.creator(this.filename, os.O_APPEND|os.O_WRONLY, 0777)
 	if err != nil {
 		// 如果打开文件出错，则创建新的文件
 		return this.create()
@@ -142,7 +165,7 @@ func (this *File) openOrCreate(size int64) error {
 }
 
 func (this *File) create() error {
-	var file, err = os.OpenFile(this.filename, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0777)
+	var file, err = this.creator(this.filename, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0777)
 	if err != nil {
 		return err
 	}
@@ -177,6 +200,15 @@ func (this *File) rotate() error {
 
 	this.needClean()
 	return nil
+}
+
+func (this *File) Sync() error {
+	this.mu.Lock()
+	defer this.mu.Unlock()
+	if this.closed {
+		return fs.ErrClosed
+	}
+	return this.file.Sync()
 }
 
 func (this *File) Close() error {
@@ -228,5 +260,4 @@ func (this *File) runClean() {
 			}
 		}
 	}
-
 }
