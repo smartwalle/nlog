@@ -11,7 +11,7 @@ import (
 )
 
 func main() {
-	var file, _ = nlog.NewFile("logs/test.log", nlog.WithMaxAge(10))
+	var file, _ = nlog.NewRollingFile("logs/test.log", nlog.WithMaxAge(10))
 	log.SetOutput(file)
 	log.SetFlags(log.Ldate | log.Ltime | log.Llongfile)
 

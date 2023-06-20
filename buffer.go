@@ -5,6 +5,12 @@ import (
 	"os"
 )
 
+func WithBuffer(bytes int) Option {
+	return WithBuilder(func(name string, flag int, perm os.FileMode) (FileWriter, error) {
+		return openBufferedFile(name, flag, perm, bytes)
+	})
+}
+
 type bufferedFile struct {
 	*bufio.Writer
 	file *os.File

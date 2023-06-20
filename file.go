@@ -19,12 +19,12 @@ type FileWriter interface {
 	Close() error
 }
 
-type FileWriterBuilder func(name string, flag int, perm os.FileMode) (FileWriter, error)
+type FileBuilder func(name string, flag int, perm os.FileMode) (FileWriter, error)
 
-type Option func(opts *File)
+type Option func(opts *RollingFile)
 
 func WithMaxSize(bytes int64) Option {
-	return func(opts *File) {
+	return func(opts *RollingFile) {
 		if bytes <= 0 {
 			return
 		}
@@ -33,7 +33,7 @@ func WithMaxSize(bytes int64) Option {
 }
 
 func WithMaxAge(seconds int64) Option {
-	return func(opts *File) {
+	return func(opts *RollingFile) {
 		if seconds <= 0 {
 			return
 		}
@@ -41,39 +41,31 @@ func WithMaxAge(seconds int64) Option {
 	}
 }
 
-func WithBuffer(bytes int) Option {
-	return func(opts *File) {
-		opts.builder = func(name string, flag int, perm os.FileMode) (FileWriter, error) {
-			return openBufferedFile(name, flag, perm, bytes)
-		}
-	}
-}
-
-func WithBuilder(builder FileWriterBuilder) Option {
-	return func(opts *File) {
+func WithBuilder(builder FileBuilder) Option {
+	return func(opts *RollingFile) {
 		opts.builder = builder
 	}
 }
 
-type File struct {
-	filename  string // logs/test.log
+type RollingFile struct {
+	filename  string // logs/test.txt
 	filepath  string // logs
-	name      string // test.log
-	extension string // .log
-	backup    string // logs/test-%s.log
+	name      string // test.txt
+	extension string // .txt
+	backup    string // logs/test-%s.txt
 
 	maxSize int64
 	maxAge  int64
 
 	mu      sync.Mutex
-	builder FileWriterBuilder
+	builder FileBuilder
 	file    FileWriter
 	size    int64
 	closed  bool
 	clean   chan struct{}
 }
 
-func NewFile(filename string, opts ...Option) (*File, error) {
+func NewRollingFile(filename string, opts ...Option) (*RollingFile, error) {
 	if filename == "" {
 		return nil, errors.New("filename cannot be empty")
 	}
@@ -86,7 +78,7 @@ func NewFile(filename string, opts ...Option) (*File, error) {
 		return nil, fmt.Errorf("a folder with the name %s already exists", filename)
 	}
 
-	var file = &File{}
+	var file = &RollingFile{}
 	file.filename = filename
 	file.filepath = filepath.Dir(filename)
 	file.name = filepath.Base(filename)
@@ -115,7 +107,7 @@ func NewFile(filename string, opts ...Option) (*File, error) {
 	return file, nil
 }
 
-func (this *File) Write(b []byte) (n int, err error) {
+func (this *RollingFile) Write(b []byte) (n int, err error) {
 	this.mu.Lock()
 	defer this.mu.Unlock()
 	if this.closed {
@@ -140,7 +132,7 @@ func (this *File) Write(b []byte) (n int, err error) {
 	return n, err
 }
 
-func (this *File) openOrCreate(size int64) error {
+func (this *RollingFile) openOrCreate(size int64) error {
 	this.needClean()
 
 	// 获取文件信息
@@ -170,7 +162,7 @@ func (this *File) openOrCreate(size int64) error {
 	return nil
 }
 
-func (this *File) create() error {
+func (this *RollingFile) create() error {
 	var file, err = this.builder(this.filename, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0777)
 	if err != nil {
 		return err
@@ -180,7 +172,7 @@ func (this *File) create() error {
 	return nil
 }
 
-func (this *File) rename() error {
+func (this *RollingFile) rename() error {
 	_, err := os.Stat(this.filename)
 	if err == nil {
 		var name = fmt.Sprintf(this.backup, time.Now().Format("2006_01_02_15_04_05.000000"))
@@ -191,7 +183,7 @@ func (this *File) rename() error {
 	return err
 }
 
-func (this *File) rotate() error {
+func (this *RollingFile) rotate() error {
 	if err := this.close(); err != nil {
 		return err
 	}
@@ -208,7 +200,7 @@ func (this *File) rotate() error {
 	return nil
 }
 
-func (this *File) Sync() error {
+func (this *RollingFile) Sync() error {
 	this.mu.Lock()
 	defer this.mu.Unlock()
 	if this.closed {
@@ -217,7 +209,7 @@ func (this *File) Sync() error {
 	return this.file.Sync()
 }
 
-func (this *File) Close() error {
+func (this *RollingFile) Close() error {
 	this.mu.Lock()
 	defer this.mu.Unlock()
 	if this.closed {
@@ -228,7 +220,7 @@ func (this *File) Close() error {
 	return this.close()
 }
 
-func (this *File) close() error {
+func (this *RollingFile) close() error {
 	if this.file == nil {
 		return nil
 	}
@@ -237,14 +229,14 @@ func (this *File) close() error {
 	return err
 }
 
-func (this *File) needClean() {
+func (this *RollingFile) needClean() {
 	select {
 	case this.clean <- struct{}{}:
 	default:
 	}
 }
 
-func (this *File) runClean() {
+func (this *RollingFile) runClean() {
 	if this.maxAge <= 0 {
 		return
 	}
