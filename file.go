@@ -151,7 +151,7 @@ func (this *RollingFile) openOrCreate(size int64) error {
 	}
 
 	// 打开现有的文件
-	file, err := this.builder(this.filename, os.O_APPEND|os.O_WRONLY, 0777)
+	file, err := this.builder(this.filename, os.O_APPEND|os.O_WRONLY, 0644)
 	if err != nil {
 		// 如果打开文件出错，则创建新的文件
 		return this.create()
@@ -163,7 +163,7 @@ func (this *RollingFile) openOrCreate(size int64) error {
 }
 
 func (this *RollingFile) create() error {
-	var file, err = this.builder(this.filename, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0777)
+	var file, err = this.builder(this.filename, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0644)
 	if err != nil {
 		return err
 	}
