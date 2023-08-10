@@ -3,7 +3,7 @@ package main
 import (
 	"fmt"
 	"github.com/smartwalle/rollingfile"
-	"log"
+	"log/slog"
 	"os"
 	"os/signal"
 	"syscall"
@@ -11,14 +11,11 @@ import (
 )
 
 func main() {
-	var file, _ = rollingfile.New("logs/test.log", rollingfile.WithMaxAge(10))
-	log.SetOutput(file)
-	log.SetFlags(log.Ldate | log.Ltime | log.Llongfile)
+	var file, _ = rollingfile.New("slogs/test.log", rollingfile.WithMaxAge(10))
+	var logger = slog.New(slog.NewTextHandler(file, nil))
+	slog.SetDefault(logger)
 
 	defer file.Close()
-	defer func() {
-		fmt.Println("cc")
-	}()
 
 	var closed = make(chan struct{}, 1)
 
@@ -35,7 +32,8 @@ func main() {
 				return
 			default:
 				i++
-				log.Println(i, "世间有些人从不相信一见钟情，相比偶然一次的巧合相遇，他们更愿意相信时间，因为时间总能验证巧合是否能成为相濡以沫或是心有灵犀。")
+
+				slog.Info("世间有些人从不相信一见钟情，相比偶然一次的巧合相遇，他们更愿意相信时间，因为时间总能验证巧合是否能成为相濡以沫或是心有灵犀。", "index", i)
 
 			}
 		}

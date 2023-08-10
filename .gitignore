@@ -18,4 +18,5 @@
 .idea
 *.iml
 logs
+slogs
 .DS_Store
