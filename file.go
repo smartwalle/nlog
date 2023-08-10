@@ -62,7 +62,7 @@ type File struct {
 	file    FileWriter
 	size    int64
 	closed  bool
-	clean   chan struct{}
+	clear   chan struct{}
 }
 
 func New(filename string, opts ...Option) (*File, error) {
@@ -91,7 +91,7 @@ func New(filename string, opts ...Option) (*File, error) {
 	file.builder = func(name string, flag int, perm os.FileMode) (FileWriter, error) {
 		return os.OpenFile(name, flag, perm)
 	}
-	file.clean = make(chan struct{}, 1)
+	file.clear = make(chan struct{}, 1)
 
 	for _, opt := range opts {
 		if opt != nil {
@@ -103,7 +103,7 @@ func New(filename string, opts ...Option) (*File, error) {
 		return nil, err
 	}
 
-	go file.runClean()
+	go file.runClear()
 	return file, nil
 }
 
@@ -133,7 +133,7 @@ func (this *File) Write(b []byte) (n int, err error) {
 }
 
 func (this *File) openOrCreate(size int64) error {
-	this.needClean()
+	this.needClear()
 
 	// 获取文件信息
 	var info, err = os.Stat(this.filename)
@@ -196,7 +196,7 @@ func (this *File) rotate() error {
 		return err
 	}
 
-	this.needClean()
+	this.needClear()
 	return nil
 }
 
@@ -216,7 +216,7 @@ func (this *File) Close() error {
 		return nil
 	}
 	this.closed = true
-	close(this.clean)
+	close(this.clear)
 	return this.close()
 }
 
@@ -229,21 +229,21 @@ func (this *File) close() error {
 	return err
 }
 
-func (this *File) needClean() {
+func (this *File) needClear() {
 	select {
-	case this.clean <- struct{}{}:
+	case this.clear <- struct{}{}:
 	default:
 	}
 }
 
-func (this *File) runClean() {
+func (this *File) runClear() {
 	if this.maxAge <= 0 {
 		return
 	}
 
 	for {
 		select {
-		case _, ok := <-this.clean:
+		case _, ok := <-this.clear:
 			if !ok {
 				return
 			}
