@@ -50,7 +50,7 @@ func WithBuilder(builder FileBuilder) Option {
 type RollingFile struct {
 	filename  string // logs/test.txt
 	filepath  string // logs
-	name      string // test.txt
+	basename  string // test.txt
 	extension string // .txt
 	backup    string // logs/test-%s.txt
 
@@ -81,9 +81,9 @@ func NewRollingFile(filename string, opts ...Option) (*RollingFile, error) {
 	var file = &RollingFile{}
 	file.filename = filename
 	file.filepath = filepath.Dir(filename)
-	file.name = filepath.Base(filename)
+	file.basename = filepath.Base(filename)
 	file.extension = filepath.Ext(filename)
-	file.backup = filepath.Join(file.filepath, strings.Split(file.name, ".")[0]+"-%s"+file.extension)
+	file.backup = filepath.Join(file.filepath, strings.Split(file.basename, ".")[0]+"-%s"+file.extension)
 
 	file.maxSize = 10 * 1024 * 1024
 	file.maxAge = 0
@@ -251,7 +251,7 @@ func (this *RollingFile) runClean() {
 			for _, file := range files {
 				info, _ := file.Info()
 				if info != nil && !info.IsDir() && info.ModTime().Unix() < (time.Now().Unix()-this.maxAge) {
-					if info.Name() != this.name && filepath.Ext(info.Name()) == this.extension {
+					if info.Name() != this.basename && filepath.Ext(info.Name()) == this.extension {
 						os.Remove(filepath.Join(this.filepath, info.Name()))
 					}
 				}
