@@ -2,7 +2,7 @@ package main
 
 import (
 	"fmt"
-	"github.com/smartwalle/nlog"
+	"github.com/smartwalle/rollingfile"
 	"log"
 	"os"
 	"os/signal"
@@ -11,7 +11,7 @@ import (
 )
 
 func main() {
-	var file, _ = nlog.NewRollingFile("logs/test.log", nlog.WithMaxAge(10))
+	var file, _ = rollingfile.New("logs/test.log", rollingfile.WithMaxAge(10))
 	log.SetOutput(file)
 	log.SetFlags(log.Ldate | log.Ltime | log.Llongfile)
 
@@ -43,14 +43,14 @@ func main() {
 
 	var c = make(chan os.Signal, 1)
 	signal.Notify(c, syscall.SIGQUIT, syscall.SIGTERM, syscall.SIGINT)
-	//MainLoop:
+MainLoop:
 	for {
 		s := <-c
 		switch s {
 		case syscall.SIGQUIT, syscall.SIGTERM, syscall.SIGINT:
 			close(closed)
 			time.Sleep(time.Second * 1)
-			return
+			break MainLoop
 		}
 	}
 }

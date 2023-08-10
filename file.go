@@ -1,4 +1,4 @@
-package nlog
+package rollingfile
 
 import (
 	"errors"
@@ -21,10 +21,10 @@ type FileWriter interface {
 
 type FileBuilder func(name string, flag int, perm os.FileMode) (FileWriter, error)
 
-type Option func(opts *RollingFile)
+type Option func(opts *File)
 
 func WithMaxSize(bytes int64) Option {
-	return func(opts *RollingFile) {
+	return func(opts *File) {
 		if bytes <= 0 {
 			return
 		}
@@ -33,7 +33,7 @@ func WithMaxSize(bytes int64) Option {
 }
 
 func WithMaxAge(seconds int64) Option {
-	return func(opts *RollingFile) {
+	return func(opts *File) {
 		if seconds <= 0 {
 			return
 		}
@@ -42,12 +42,12 @@ func WithMaxAge(seconds int64) Option {
 }
 
 func WithBuilder(builder FileBuilder) Option {
-	return func(opts *RollingFile) {
+	return func(opts *File) {
 		opts.builder = builder
 	}
 }
 
-type RollingFile struct {
+type File struct {
 	filename  string // logs/test.txt
 	filepath  string // logs
 	basename  string // test.txt
@@ -65,7 +65,7 @@ type RollingFile struct {
 	clean   chan struct{}
 }
 
-func NewRollingFile(filename string, opts ...Option) (*RollingFile, error) {
+func New(filename string, opts ...Option) (*File, error) {
 	if filename == "" {
 		return nil, errors.New("filename cannot be empty")
 	}
@@ -78,7 +78,7 @@ func NewRollingFile(filename string, opts ...Option) (*RollingFile, error) {
 		return nil, fmt.Errorf("a folder with the name %s already exists", filename)
 	}
 
-	var file = &RollingFile{}
+	var file = &File{}
 	file.filename = filename
 	file.filepath = filepath.Dir(filename)
 	file.basename = filepath.Base(filename)
@@ -107,7 +107,7 @@ func NewRollingFile(filename string, opts ...Option) (*RollingFile, error) {
 	return file, nil
 }
 
-func (this *RollingFile) Write(b []byte) (n int, err error) {
+func (this *File) Write(b []byte) (n int, err error) {
 	this.mu.Lock()
 	defer this.mu.Unlock()
 	if this.closed {
@@ -132,7 +132,7 @@ func (this *RollingFile) Write(b []byte) (n int, err error) {
 	return n, err
 }
 
-func (this *RollingFile) openOrCreate(size int64) error {
+func (this *File) openOrCreate(size int64) error {
 	this.needClean()
 
 	// 获取文件信息
@@ -162,7 +162,7 @@ func (this *RollingFile) openOrCreate(size int64) error {
 	return nil
 }
 
-func (this *RollingFile) create() error {
+func (this *File) create() error {
 	var file, err = this.builder(this.filename, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0644)
 	if err != nil {
 		return err
@@ -172,7 +172,7 @@ func (this *RollingFile) create() error {
 	return nil
 }
 
-func (this *RollingFile) rename() error {
+func (this *File) rename() error {
 	_, err := os.Stat(this.filename)
 	if err == nil {
 		var name = fmt.Sprintf(this.backup, time.Now().Format("2006_01_02_15_04_05.000000"))
@@ -183,7 +183,7 @@ func (this *RollingFile) rename() error {
 	return err
 }
 
-func (this *RollingFile) rotate() error {
+func (this *File) rotate() error {
 	if err := this.close(); err != nil {
 		return err
 	}
@@ -200,7 +200,7 @@ func (this *RollingFile) rotate() error {
 	return nil
 }
 
-func (this *RollingFile) Sync() error {
+func (this *File) Sync() error {
 	this.mu.Lock()
 	defer this.mu.Unlock()
 	if this.closed {
@@ -209,7 +209,7 @@ func (this *RollingFile) Sync() error {
 	return this.file.Sync()
 }
 
-func (this *RollingFile) Close() error {
+func (this *File) Close() error {
 	this.mu.Lock()
 	defer this.mu.Unlock()
 	if this.closed {
@@ -220,7 +220,7 @@ func (this *RollingFile) Close() error {
 	return this.close()
 }
 
-func (this *RollingFile) close() error {
+func (this *File) close() error {
 	if this.file == nil {
 		return nil
 	}
@@ -229,14 +229,14 @@ func (this *RollingFile) close() error {
 	return err
 }
 
-func (this *RollingFile) needClean() {
+func (this *File) needClean() {
 	select {
 	case this.clean <- struct{}{}:
 	default:
 	}
 }
 
-func (this *RollingFile) runClean() {
+func (this *File) runClean() {
 	if this.maxAge <= 0 {
 		return
 	}

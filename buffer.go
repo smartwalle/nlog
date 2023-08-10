@@ -1,4 +1,4 @@
-package nlog
+package rollingfile
 
 import (
 	"bufio"

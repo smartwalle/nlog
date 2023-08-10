@@ -1,8 +1,8 @@
-package nlog_test
+package rollingfile_test
 
 import (
 	"fmt"
-	"github.com/smartwalle/nlog"
+	"github.com/smartwalle/rollingfile"
 	"log"
 	"math/rand"
 	"testing"
@@ -10,7 +10,7 @@ import (
 
 func BenchmarkFile_Write(b *testing.B) {
 	var n = rand.Int()
-	var file, err = nlog.NewRollingFile(fmt.Sprintf("logs/%d.log", n))
+	var file, err = rollingfile.New(fmt.Sprintf("logs/%d.log", n))
 	if err != nil {
 		b.Fatal(err)
 	}
@@ -29,7 +29,7 @@ func BenchmarkFile_Write(b *testing.B) {
 
 func BenchmarkBufferedFile_Write(b *testing.B) {
 	var n = rand.Int()
-	var file, err = nlog.NewRollingFile(fmt.Sprintf("logs/%d.log", n), nlog.WithBuffer(1*1024*1024))
+	var file, err = rollingfile.New(fmt.Sprintf("logs/%d.log", n), rollingfile.WithBuffer(1*1024*1024))
 	if err != nil {
 		b.Fatal(err)
 	}
