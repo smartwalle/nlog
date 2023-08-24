@@ -1,11 +1,11 @@
-module github.com/smartwalle/rollingfile/examples
+module github.com/smartwalle/nlog/examples
 
 go 1.16
 
 require (
-	github.com/smartwalle/rollingfile v0.0.0
+	github.com/smartwalle/nlog v0.0.0
 )
 
 replace (
-	github.com/smartwalle/rollingfile => ../
+	github.com/smartwalle/nlog => ../
 )

@@ -1,3 +1,3 @@
-module github.com/smartwalle/rollingfile
+module github.com/smartwalle/nlog
 
 go 1.16

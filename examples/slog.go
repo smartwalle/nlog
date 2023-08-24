@@ -2,7 +2,7 @@ package main
 
 import (
 	"fmt"
-	"github.com/smartwalle/rollingfile"
+	"github.com/smartwalle/nlog/rfile"
 	"log/slog"
 	"os"
 	"os/signal"
@@ -11,7 +11,7 @@ import (
 )
 
 func main() {
-	var file, _ = rollingfile.New("slogs/test.log", rollingfile.WithMaxAge(10))
+	var file, _ = rfile.New("slogs/test.log", rfile.WithMaxAge(10))
 	var logger = slog.New(slog.NewTextHandler(file, nil))
 	slog.SetDefault(logger)
 

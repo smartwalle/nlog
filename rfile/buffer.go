@@ -1,4 +1,4 @@
-package rollingfile
+package rfile
 
 import (
 	"bufio"

@@ -2,7 +2,7 @@ package main
 
 import (
 	"fmt"
-	"github.com/smartwalle/rollingfile"
+	"github.com/smartwalle/nlog/rfile"
 	"log"
 	"os"
 	"os/signal"
@@ -11,7 +11,7 @@ import (
 )
 
 func main() {
-	var file, _ = rollingfile.New("logs/test.log", rollingfile.WithMaxAge(10))
+	var file, _ = rfile.New("logs/test.log", rfile.WithMaxAge(10))
 	log.SetOutput(file)
 	log.SetFlags(log.Ldate | log.Ltime | log.Llongfile)
 
