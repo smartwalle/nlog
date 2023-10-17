@@ -28,16 +28,16 @@ func openBufferedFile(name string, flag int, perm os.FileMode, size int) (*buffe
 	return buffer, nil
 }
 
-func (this *bufferedFile) Sync() error {
-	if err := this.Writer.Flush(); err != nil {
+func (b *bufferedFile) Sync() error {
+	if err := b.Writer.Flush(); err != nil {
 		return err
 	}
-	return this.file.Sync()
+	return b.file.Sync()
 }
 
-func (this *bufferedFile) Close() error {
-	if err := this.Sync(); err != nil {
+func (b *bufferedFile) Close() error {
+	if err := b.Sync(); err != nil {
 		return err
 	}
-	return this.file.Close()
+	return b.file.Close()
 }

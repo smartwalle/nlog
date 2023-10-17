@@ -107,152 +107,152 @@ func New(filename string, opts ...Option) (*File, error) {
 	return file, nil
 }
 
-func (this *File) Write(b []byte) (n int, err error) {
-	this.mu.Lock()
-	defer this.mu.Unlock()
-	if this.closed {
+func (f *File) Write(b []byte) (n int, err error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	if f.closed {
 		return 0, fs.ErrClosed
 	}
 
 	var wLen = int64(len(b))
-	if this.file == nil {
-		if err = this.openOrCreate(wLen); err != nil {
+	if f.file == nil {
+		if err = f.openOrCreate(wLen); err != nil {
 			return 0, err
 		}
 	}
 
-	if this.size+wLen > this.maxSize {
-		if err = this.rotate(); err != nil {
+	if f.size+wLen > f.maxSize {
+		if err = f.rotate(); err != nil {
 			return 0, err
 		}
 	}
 
-	n, err = this.file.Write(b)
-	this.size += int64(n)
+	n, err = f.file.Write(b)
+	f.size += int64(n)
 	return n, err
 }
 
-func (this *File) openOrCreate(size int64) error {
-	this.needClear()
+func (f *File) openOrCreate(size int64) error {
+	f.needClear()
 
 	// 获取文件信息
-	var info, err = os.Stat(this.filename)
+	var info, err = os.Stat(f.filename)
 	if os.IsNotExist(err) {
 		// 如果文件不存在，直接创建新的文件
-		return this.create()
+		return f.create()
 	}
 	if err != nil {
 		return err
 	}
 
 	// 文件存在，但是其文件大小已超出设定的阈值
-	if info.Size()+size >= this.maxSize {
-		return this.rotate()
+	if info.Size()+size >= f.maxSize {
+		return f.rotate()
 	}
 
 	// 打开现有的文件
-	file, err := this.builder(this.filename, os.O_APPEND|os.O_WRONLY, 0644)
+	file, err := f.builder(f.filename, os.O_APPEND|os.O_WRONLY, 0644)
 	if err != nil {
 		// 如果打开文件出错，则创建新的文件
-		return this.create()
+		return f.create()
 	}
 
-	this.file = file
-	this.size = info.Size()
+	f.file = file
+	f.size = info.Size()
 	return nil
 }
 
-func (this *File) create() error {
-	var file, err = this.builder(this.filename, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0644)
+func (f *File) create() error {
+	var file, err = f.builder(f.filename, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0644)
 	if err != nil {
 		return err
 	}
-	this.file = file
-	this.size = 0
+	f.file = file
+	f.size = 0
 	return nil
 }
 
-func (this *File) rename() error {
-	_, err := os.Stat(this.filename)
+func (f *File) rename() error {
+	_, err := os.Stat(f.filename)
 	if err == nil {
-		var name = fmt.Sprintf(this.backup, time.Now().Format("2006_01_02_15_04_05.000000"))
-		if err = os.Rename(this.filename, name); err != nil {
+		var name = fmt.Sprintf(f.backup, time.Now().Format("2006_01_02_15_04_05.000000"))
+		if err = os.Rename(f.filename, name); err != nil {
 			return err
 		}
 	}
 	return err
 }
 
-func (this *File) rotate() error {
-	if err := this.close(); err != nil {
+func (f *File) rotate() error {
+	if err := f.close(); err != nil {
 		return err
 	}
 
-	if err := this.rename(); err != nil {
+	if err := f.rename(); err != nil {
 		return err
 	}
 
-	if err := this.create(); err != nil {
+	if err := f.create(); err != nil {
 		return err
 	}
 
-	this.needClear()
+	f.needClear()
 	return nil
 }
 
-func (this *File) Sync() error {
-	this.mu.Lock()
-	defer this.mu.Unlock()
-	if this.closed {
+func (f *File) Sync() error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	if f.closed {
 		return fs.ErrClosed
 	}
-	return this.file.Sync()
+	return f.file.Sync()
 }
 
-func (this *File) Close() error {
-	this.mu.Lock()
-	defer this.mu.Unlock()
-	if this.closed {
+func (f *File) Close() error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	if f.closed {
 		return nil
 	}
-	this.closed = true
-	close(this.clear)
-	return this.close()
+	f.closed = true
+	close(f.clear)
+	return f.close()
 }
 
-func (this *File) close() error {
-	if this.file == nil {
+func (f *File) close() error {
+	if f.file == nil {
 		return nil
 	}
-	var err = this.file.Close()
-	this.file = nil
+	var err = f.file.Close()
+	f.file = nil
 	return err
 }
 
-func (this *File) needClear() {
+func (f *File) needClear() {
 	select {
-	case this.clear <- struct{}{}:
+	case f.clear <- struct{}{}:
 	default:
 	}
 }
 
-func (this *File) runClear() {
-	if this.maxAge <= 0 {
+func (f *File) runClear() {
+	if f.maxAge <= 0 {
 		return
 	}
 
 	for {
 		select {
-		case _, ok := <-this.clear:
+		case _, ok := <-f.clear:
 			if !ok {
 				return
 			}
-			var files, _ = os.ReadDir(this.filepath)
+			var files, _ = os.ReadDir(f.filepath)
 			for _, file := range files {
 				info, _ := file.Info()
-				if info != nil && !info.IsDir() && info.ModTime().Unix() < (time.Now().Unix()-this.maxAge) {
-					if info.Name() != this.basename && filepath.Ext(info.Name()) == this.extension {
-						os.Remove(filepath.Join(this.filepath, info.Name()))
+				if info != nil && !info.IsDir() && info.ModTime().Unix() < (time.Now().Unix()-f.maxAge) {
+					if info.Name() != f.basename && filepath.Ext(info.Name()) == f.extension {
+						os.Remove(filepath.Join(f.filepath, info.Name()))
 					}
 				}
 			}
